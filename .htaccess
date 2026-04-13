@@ -1,0 +1,13 @@
+Options -Indexes
+AcceptPathInfo On
+
+# Enable URL rewriting
+RewriteEngine On
+
+# Allow direct file access (css, js, images, index.html)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Route /api/* to api.php with PATH_INFO preserved
+RewriteRule ^api/(.*)$ api.php/$1 [QSA,L]
