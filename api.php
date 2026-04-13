@@ -1,7 +1,6 @@
 <?php
 // ============================================================
-//  School Grading System – REST API
-//  Philippine Grade Scale (1.0 – 5.0)
+//  School Grading System API
 // ============================================================
 
 header('Content-Type: application/json');
@@ -9,236 +8,389 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization');
 
-// Handle CORS preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// --------------- Storage ---------------
-define('DATA_DIR',      __DIR__ . '/data');
-define('DATA_FILE',     DATA_DIR . '/students.json');
-define('USERS_FILE',    DATA_DIR . '/users.json');
-define('SESSIONS_FILE', DATA_DIR . '/sessions.json');
-define('TOKEN_EXPIRY',  86400); // 24 hours
+require_once __DIR__ . '/db.php';
 
-function initStorage(): void {
-    if (!is_dir(DATA_DIR)) mkdir(DATA_DIR, 0755, true);
-    if (!file_exists(DATA_FILE))
-        file_put_contents(DATA_FILE,     json_encode(['students' => [], 'next_id' => 1], JSON_PRETTY_PRINT));
-    if (!file_exists(USERS_FILE))
-        file_put_contents(USERS_FILE,    json_encode(['users' => [],    'next_id' => 1], JSON_PRETTY_PRINT));
-    if (!file_exists(SESSIONS_FILE))
-        file_put_contents(SESSIONS_FILE, json_encode(['sessions' => []]              , JSON_PRETTY_PRINT));
+define('TOKEN_EXPIRY', 86400); // 24 hours
+const VALID_GRADES = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0];
+
+set_exception_handler(function (Throwable $e): void {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Server error. Please check your database setup.',
+    ]);
+    exit;
+});
+
+function db(): PDO
+{
+    return getPDO();
 }
 
-function loadData(): array    { return json_decode(file_get_contents(DATA_FILE),     true); }
-function saveData(array $d)   { file_put_contents(DATA_FILE,     json_encode($d, JSON_PRETTY_PRINT)); }
-function loadUsers(): array   { return json_decode(file_get_contents(USERS_FILE),    true); }
-function saveUsers(array $d)  { file_put_contents(USERS_FILE,    json_encode($d, JSON_PRETTY_PRINT)); }
-function loadSessions(): array  { return json_decode(file_get_contents(SESSIONS_FILE), true); }
-function saveSessions(array $d) { file_put_contents(SESSIONS_FILE, json_encode($d, JSON_PRETTY_PRINT)); }
-
-// --------------- Auth Helpers ---------------
-function getAuthToken(): ?string {
-    $auth = '';
-    if (function_exists('getallheaders')) {
-        $h    = getallheaders();
-        $auth = $h['Authorization'] ?? $h['authorization'] ?? '';
-    }
-    if (!$auth) $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    return preg_match('/^Bearer\s+(\S+)$/i', $auth, $m) ? $m[1] : null;
-}
-
-function requireAuth(): array {
-    $token = getAuthToken();
-    if (!$token) respond(401, ['success' => false, 'message' => 'Unauthorized. Please log in.']);
-
-    $sessions = loadSessions();
-    $session  = null;
-    foreach ($sessions['sessions'] as $s) {
-        if ($s['token'] === $token) { $session = $s; break; }
-    }
-    if (!$session) respond(401, ['success' => false, 'message' => 'Invalid token. Please log in again.']);
-    if (time() - $session['created_at'] > TOKEN_EXPIRY)
-        respond(401, ['success' => false, 'message' => 'Session expired. Please log in again.']);
-
-    $users = loadUsers();
-    foreach ($users['users'] as $u) {
-        if ($u['id'] === $session['user_id']) {
-            unset($u['password']);
-            return $u;
-        }
-    }
-    respond(401, ['success' => false, 'message' => 'User account not found.']);
-}
-
-// --------------- Helpers ---------------
-function respond(int $status, array $body): void {
+function respond(int $status, array $body): void
+{
     http_response_code($status);
     echo json_encode($body);
     exit;
 }
 
-function calculateGWA(array $subjects): ?float {
-    if (empty($subjects)) return null;
+function calculateGWA(array $subjects): ?float
+{
+    if (empty($subjects)) {
+        return null;
+    }
+
     $total = array_sum(array_column($subjects, 'grade'));
     return round($total / count($subjects), 4);
 }
 
-function getRemarks(?float $gwa): string {
-    if ($gwa === null)  return 'No grades recorded';
-    if ($gwa <= 1.20)  return 'Summa Cum Laude';
-    if ($gwa <= 1.45)  return 'Magna Cum Laude';
-    if ($gwa <= 1.75)  return 'Cum Laude';
-    if ($gwa <= 3.00)  return 'Passed';
+function getRemarks(?float $gwa): string
+{
+    if ($gwa === null) {
+        return 'No grades recorded';
+    }
+    if ($gwa <= 1.20) {
+        return 'Summa Cum Laude';
+    }
+    if ($gwa <= 1.45) {
+        return 'Magna Cum Laude';
+    }
+    if ($gwa <= 1.75) {
+        return 'Cum Laude';
+    }
+    if ($gwa <= 3.00) {
+        return 'Passed';
+    }
     return 'Failed';
 }
 
-function getGradeLabel(float $grade): string {
+function getGradeLabel(float $grade): string
+{
     $map = [
-        1.0  => 'Excellent',
+        1.0 => 'Excellent',
         1.25 => 'Superior',
-        1.5  => 'Superior',
+        1.5 => 'Superior',
         1.75 => 'Very Good',
-        2.0  => 'Very Good',
+        2.0 => 'Very Good',
         2.25 => 'Good',
-        2.5  => 'Satisfactory',
+        2.5 => 'Satisfactory',
         2.75 => 'Satisfactory',
-        3.0  => 'Passing',
-        5.0  => 'Failed',
+        3.0 => 'Passing',
+        5.0 => 'Failed',
     ];
+
     return $map[$grade] ?? 'Unknown';
 }
 
-const VALID_GRADES = [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0];
-
-function isValidGrade($grade): bool {
+function isValidGrade($grade): bool
+{
     return in_array((float) $grade, VALID_GRADES, true);
 }
 
-function withGWA(array $student): array {
+function getAuthToken(): ?string
+{
+    $auth = '';
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        $auth = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    }
+    if (!$auth) {
+        $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    }
+
+    return preg_match('/^Bearer\s+(\S+)$/i', $auth, $matches) ? $matches[1] : null;
+}
+
+function fetchUserById(int $userId): ?array
+{
+    $stmt = db()->prepare(
+        'SELECT id, username, full_name, role, created_at
+         FROM users
+         WHERE id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        return null;
+    }
+
+    return [
+        'id' => (int) $user['id'],
+        'username' => $user['username'],
+        'full_name' => $user['full_name'],
+        'role' => $user['role'],
+        'created_at' => (int) $user['created_at'],
+    ];
+}
+
+function deleteSessionToken(string $token): void
+{
+    $stmt = db()->prepare('DELETE FROM sessions WHERE token = ?');
+    $stmt->execute([$token]);
+}
+
+function requireAuth(): array
+{
+    $token = getAuthToken();
+    if (!$token) {
+        respond(401, ['success' => false, 'message' => 'Unauthorized. Please log in.']);
+    }
+
+    $stmt = db()->prepare(
+        'SELECT token, user_id, created_at
+         FROM sessions
+         WHERE token = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$token]);
+    $session = $stmt->fetch();
+
+    if (!$session) {
+        respond(401, ['success' => false, 'message' => 'Invalid token. Please log in again.']);
+    }
+
+    if (time() - (int) $session['created_at'] > TOKEN_EXPIRY) {
+        deleteSessionToken($token);
+        respond(401, ['success' => false, 'message' => 'Session expired. Please log in again.']);
+    }
+
+    $user = fetchUserById((int) $session['user_id']);
+    if (!$user) {
+        deleteSessionToken($token);
+        respond(401, ['success' => false, 'message' => 'User account not found.']);
+    }
+
+    return $user;
+}
+
+function fetchSubjectsByStudentId(int $studentId): array
+{
+    $stmt = db()->prepare(
+        'SELECT name, grade, label
+         FROM subjects
+         WHERE student_id = ?
+         ORDER BY id ASC'
+    );
+    $stmt->execute([$studentId]);
+
+    $subjects = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $subjects[] = [
+            'name' => $row['name'],
+            'grade' => (float) $row['grade'],
+            'label' => $row['label'],
+        ];
+    }
+
+    return $subjects;
+}
+
+function withGWA(array $student): array
+{
     $gwa = calculateGWA($student['subjects']);
-    $student['gwa']     = $gwa;
+    $student['gwa'] = $gwa;
     $student['remarks'] = getRemarks($gwa);
     return $student;
 }
 
-function findStudent(array $data, int $id): ?int {
-    foreach ($data['students'] as $i => $s) {
-        if ($s['id'] === $id) return $i;
+function fetchStudentById(int $studentId): ?array
+{
+    $stmt = db()->prepare(
+        'SELECT id, name, year_level
+         FROM students
+         WHERE id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$studentId]);
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        return null;
     }
-    return null;
+
+    return withGWA([
+        'id' => (int) $row['id'],
+        'name' => $row['name'],
+        'year_level' => $row['year_level'] ?? '',
+        'subjects' => fetchSubjectsByStudentId((int) $row['id']),
+    ]);
 }
 
-// --------------- Path Parsing ---------------
-// Supports both PATH_INFO and REQUEST_URI fallback for XAMPP compatibility
+function fetchAllStudents(): array
+{
+    $stmt = db()->query(
+        'SELECT id, name, year_level
+         FROM students
+         ORDER BY id ASC'
+    );
+
+    $students = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $students[] = withGWA([
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'year_level' => $row['year_level'] ?? '',
+            'subjects' => fetchSubjectsByStudentId((int) $row['id']),
+        ]);
+    }
+
+    return $students;
+}
+
+function findSubjectRecord(int $studentId, string $subjectName): ?array
+{
+    $stmt = db()->prepare(
+        'SELECT id, name, grade, label
+         FROM subjects
+         WHERE student_id = ?
+           AND LOWER(name) = LOWER(?)
+         LIMIT 1'
+    );
+    $stmt->execute([$studentId, $subjectName]);
+    $subject = $stmt->fetch();
+
+    return $subject ?: null;
+}
+
 $pathInfo = $_SERVER['PATH_INFO'] ?? '';
-if (empty($pathInfo)) {
+if ($pathInfo === '') {
     $requestUri = $_SERVER['REQUEST_URI'] ?? '';
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $pathInfo = substr($requestUri, strlen($scriptName));
-    if (($q = strpos($pathInfo, '?')) !== false) {
-        $pathInfo = substr($pathInfo, 0, $q);
+    if (($questionPos = strpos($pathInfo, '?')) !== false) {
+        $pathInfo = substr($pathInfo, 0, $questionPos);
     }
 }
-$parts    = array_values(array_filter(explode('/', trim($pathInfo, '/'))));
-$method   = $_SERVER['REQUEST_METHOD'];
-$body     = json_decode(file_get_contents('php://input'), true) ?? [];
 
-$resource = $parts[0] ?? null;           // "students"
-$id       = isset($parts[1]) ? (int) $parts[1] : null;
-$sub      = $parts[2] ?? null;           // "subjects" | "gwa"
-$subParam = isset($parts[3]) ? urldecode($parts[3]) : null; // subject name
+$parts = array_values(array_filter(explode('/', trim($pathInfo, '/'))));
+$method = $_SERVER['REQUEST_METHOD'];
+$body = json_decode(file_get_contents('php://input'), true) ?? [];
 
-// --------------- Init & Gate ---------------
-initStorage();
+$resource = $parts[0] ?? null;
+$id = isset($parts[1]) ? (int) $parts[1] : null;
+$sub = $parts[2] ?? null;
+$subParam = isset($parts[3]) ? urldecode($parts[3]) : null;
 
-// ================================================================
-//  AUTH ROUTES  (public – no token required)
-// ================================================================
-
-// POST /register
 if ($method === 'POST' && $resource === 'register') {
-    $username  = trim($body['username']  ?? '');
-    $password  = $body['password']       ?? '';
-    $full_name = trim($body['full_name'] ?? '');
+    $username = trim($body['username'] ?? '');
+    $password = $body['password'] ?? '';
+    $fullName = trim($body['full_name'] ?? '');
 
-    if (!$username || !$password || !$full_name)
+    if (!$username || !$password || !$fullName) {
         respond(400, ['success' => false, 'message' => 'username, password, and full_name are required.']);
-    if (strlen($username) < 3)
+    }
+    if (strlen($username) < 3) {
         respond(400, ['success' => false, 'message' => 'Username must be at least 3 characters.']);
-    if (!preg_match('/^[a-zA-Z0-9_]+$/', $username))
+    }
+    if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
         respond(400, ['success' => false, 'message' => 'Username may only contain letters, numbers, and underscores.']);
-    if (strlen($password) < 6)
+    }
+    if (strlen($password) < 6) {
         respond(400, ['success' => false, 'message' => 'Password must be at least 6 characters.']);
+    }
 
-    $users = loadUsers();
-    foreach ($users['users'] as $u)
-        if (strtolower($u['username']) === strtolower($username))
-            respond(409, ['success' => false, 'message' => "Username \"{$username}\" is already taken."]);
+    $checkStmt = db()->prepare(
+        'SELECT id
+         FROM users
+         WHERE LOWER(username) = LOWER(?)
+         LIMIT 1'
+    );
+    $checkStmt->execute([$username]);
+    if ($checkStmt->fetch()) {
+        respond(409, ['success' => false, 'message' => "Username \"{$username}\" is already taken."]);
+    }
 
-    $user = [
-        'id'         => $users['next_id'],
-        'username'   => $username,
-        'full_name'  => $full_name,
-        'password'   => password_hash($password, PASSWORD_BCRYPT),
-        'role'       => 'teacher',
-        'created_at' => time(),
-    ];
-    $users['users'][]  = $user;
-    $users['next_id']++;
-    saveUsers($users);
-    unset($user['password']);
-    respond(201, ['success' => true, 'message' => 'Account created successfully! You can now log in.', 'data' => $user]);
+    $insertStmt = db()->prepare(
+        'INSERT INTO users (full_name, username, password, role, created_at)
+         VALUES (?, ?, ?, ?, ?)'
+    );
+    $insertStmt->execute([
+        $fullName,
+        $username,
+        password_hash($password, PASSWORD_BCRYPT),
+        'teacher',
+        time(),
+    ]);
+
+    $user = fetchUserById((int) db()->lastInsertId());
+    respond(201, [
+        'success' => true,
+        'message' => 'Account created successfully! You can now log in.',
+        'data' => $user,
+    ]);
 }
 
-// POST /login
 if ($method === 'POST' && $resource === 'login') {
     $username = trim($body['username'] ?? '');
-    $password = $body['password']       ?? '';
+    $password = $body['password'] ?? '';
 
-    if (!$username || !$password)
+    if (!$username || !$password) {
         respond(400, ['success' => false, 'message' => 'Username and password are required.']);
+    }
 
-    $users = loadUsers();
-    $found = null;
-    foreach ($users['users'] as $u)
-        if (strtolower($u['username']) === strtolower($username)) { $found = $u; break; }
+    $stmt = db()->prepare(
+        'SELECT id, username, full_name, password, role, created_at
+         FROM users
+         WHERE LOWER(username) = LOWER(?)
+         LIMIT 1'
+    );
+    $stmt->execute([$username]);
+    $found = $stmt->fetch();
 
-    if (!$found || !password_verify($password, $found['password']))
+    if (!$found || !password_verify($password, $found['password'])) {
         respond(401, ['success' => false, 'message' => 'Invalid username or password.']);
+    }
 
-    $token    = bin2hex(random_bytes(32));
-    $sessions = loadSessions();
-    // Invalidate previous sessions for this user
-    $sessions['sessions'] = array_values(array_filter(
-        $sessions['sessions'], fn($s) => $s['user_id'] !== $found['id']
-    ));
-    $sessions['sessions'][] = [
-        'token'      => $token,
-        'user_id'    => $found['id'],
-        'created_at' => time(),
-    ];
-    saveSessions($sessions);
-    unset($found['password']);
-    respond(200, ['success' => true, 'message' => 'Login successful!', 'token' => $token, 'user' => $found]);
+    $token = bin2hex(random_bytes(32));
+
+    db()->beginTransaction();
+    try {
+        $deleteStmt = db()->prepare('DELETE FROM sessions WHERE user_id = ?');
+        $deleteStmt->execute([(int) $found['id']]);
+
+        $insertStmt = db()->prepare(
+            'INSERT INTO sessions (token, user_id, created_at)
+             VALUES (?, ?, ?)'
+        );
+        $insertStmt->execute([$token, (int) $found['id'], time()]);
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+
+    respond(200, [
+        'success' => true,
+        'message' => 'Login successful!',
+        'token' => $token,
+        'user' => [
+            'id' => (int) $found['id'],
+            'username' => $found['username'],
+            'full_name' => $found['full_name'],
+            'role' => $found['role'],
+            'created_at' => (int) $found['created_at'],
+        ],
+    ]);
 }
 
-// POST /logout
 if ($method === 'POST' && $resource === 'logout') {
     $token = getAuthToken();
     if ($token) {
-        $sessions = loadSessions();
-        $sessions['sessions'] = array_values(array_filter(
-            $sessions['sessions'], fn($s) => $s['token'] !== $token
-        ));
-        saveSessions($sessions);
+        deleteSessionToken($token);
     }
+
     respond(200, ['success' => true, 'message' => 'Logged out successfully.']);
 }
 
-// GET /me
 if ($method === 'GET' && $resource === 'me') {
     $user = requireAuth();
     respond(200, ['success' => true, 'data' => $user]);
@@ -247,120 +399,114 @@ if ($method === 'GET' && $resource === 'me') {
 if ($resource !== 'students') {
     respond(404, [
         'success' => false,
-        'message' => 'Endpoint not found. Available resources: /register, /login, /logout, /me, /students'
+        'message' => 'Endpoint not found. Available resources: /register, /login, /logout, /me, /students',
     ]);
 }
 
-// ── All /students routes require a valid login token ────────
 $currentUser = requireAuth();
 
-$data = loadData();
-
-// ================================================================
-//  STUDENTS – collection routes  ( /students )
-// ================================================================
-
-// GET /students
 if ($method === 'GET' && $id === null) {
-    $students = array_map('withGWA', $data['students']);
+    $students = fetchAllStudents();
     respond(200, [
         'success' => true,
-        'count'   => count($students),
-        'data'    => array_values($students),
+        'count' => count($students),
+        'data' => $students,
     ]);
 }
 
-// POST /students  – create a new student
 if ($method === 'POST' && $id === null) {
     $name = trim($body['name'] ?? '');
     if ($name === '') {
         respond(400, ['success' => false, 'message' => 'Field "name" is required.']);
     }
-    $student = [
-        'id'         => $data['next_id'],
-        'name'       => $name,
-        'year_level' => trim($body['year_level'] ?? ''),
-        'subjects'   => [],
-    ];
-    $data['students'][] = $student;
-    $data['next_id']++;
-    saveData($data);
+
+    $stmt = db()->prepare(
+        'INSERT INTO students (name, year_level, created_by, created_at)
+         VALUES (?, ?, ?, ?)'
+    );
+    $stmt->execute([
+        $name,
+        trim($body['year_level'] ?? ''),
+        (int) $currentUser['id'],
+        time(),
+    ]);
+
+    $student = fetchStudentById((int) db()->lastInsertId());
     respond(201, [
         'success' => true,
         'message' => "Student \"{$name}\" created successfully.",
-        'data'    => withGWA($student),
+        'data' => $student,
     ]);
 }
 
-// ================================================================
-//  STUDENTS – item routes  ( /students/{id} )
-// ================================================================
+if ($id === null) {
+    respond(405, ['success' => false, 'message' => 'Method not allowed.']);
+}
 
-$idx = findStudent($data, $id);
-if ($idx === null) {
+$student = fetchStudentById($id);
+if (!$student) {
     respond(404, ['success' => false, 'message' => "Student with id {$id} not found."]);
 }
 
-// GET /students/{id}
 if ($method === 'GET' && $sub === null) {
-    respond(200, ['success' => true, 'data' => withGWA($data['students'][$idx])]);
+    respond(200, ['success' => true, 'data' => $student]);
 }
 
-// GET /students/{id}/gwa
 if ($method === 'GET' && $sub === 'gwa') {
-    $s   = $data['students'][$idx];
-    $gwa = calculateGWA($s['subjects']);
     respond(200, [
         'success' => true,
         'data' => [
-            'student_id'     => $id,
-            'name'           => $s['name'],
-            'year_level'     => $s['year_level'],
-            'gwa'            => $gwa,
-            'remarks'        => getRemarks($gwa),
-            'total_subjects' => count($s['subjects']),
-            'subjects'       => $s['subjects'],
+            'student_id' => $student['id'],
+            'name' => $student['name'],
+            'year_level' => $student['year_level'],
+            'gwa' => $student['gwa'],
+            'remarks' => $student['remarks'],
+            'total_subjects' => count($student['subjects']),
+            'subjects' => $student['subjects'],
         ],
     ]);
 }
 
-// PUT /students/{id}  – update student info
 if ($method === 'PUT' && $sub === null) {
-    $name = trim($body['name'] ?? '');
-    if ($name !== '') {
-        $data['students'][$idx]['name'] = $name;
+    $nextName = $student['name'];
+    $nextYearLevel = $student['year_level'];
+
+    $incomingName = trim($body['name'] ?? '');
+    if ($incomingName !== '') {
+        $nextName = $incomingName;
     }
     if (array_key_exists('year_level', $body)) {
-        $data['students'][$idx]['year_level'] = trim($body['year_level']);
+        $nextYearLevel = trim((string) $body['year_level']);
     }
-    saveData($data);
+
+    $stmt = db()->prepare(
+        'UPDATE students
+         SET name = ?, year_level = ?
+         WHERE id = ?'
+    );
+    $stmt->execute([$nextName, $nextYearLevel, $id]);
+
     respond(200, [
         'success' => true,
         'message' => 'Student updated successfully.',
-        'data'    => withGWA($data['students'][$idx]),
+        'data' => fetchStudentById($id),
     ]);
 }
 
-// DELETE /students/{id}
 if ($method === 'DELETE' && $sub === null) {
-    $name = $data['students'][$idx]['name'];
-    array_splice($data['students'], $idx, 1);
-    saveData($data);
+    $stmt = db()->prepare('DELETE FROM students WHERE id = ?');
+    $stmt->execute([$id]);
+
     respond(200, [
         'success' => true,
-        'message' => "Student \"{$name}\" deleted successfully.",
+        'message' => "Student \"{$student['name']}\" deleted successfully.",
     ]);
 }
-
-// ================================================================
-//  SUBJECTS  ( /students/{id}/subjects  &  /…/subjects/{name} )
-// ================================================================
 
 if ($sub !== 'subjects') {
     respond(404, ['success' => false, 'message' => "Unknown sub-resource \"{$sub}\"."]);
 }
 
-// POST /students/{id}/subjects  – add a subject
 if ($method === 'POST') {
     $subjectName = trim($body['subject_name'] ?? '');
     if ($subjectName === '') {
@@ -372,30 +518,27 @@ if ($method === 'POST') {
             'message' => 'Invalid grade. Accepted values: ' . implode(', ', VALID_GRADES),
         ]);
     }
-    // Duplicate check
-    foreach ($data['students'][$idx]['subjects'] as $s) {
-        if (strtolower($s['name']) === strtolower($subjectName)) {
-            respond(409, [
-                'success' => false,
-                'message' => "Subject \"{$subjectName}\" already exists for this student.",
-            ]);
-        }
+    if (findSubjectRecord($id, $subjectName)) {
+        respond(409, [
+            'success' => false,
+            'message' => "Subject \"{$subjectName}\" already exists for this student.",
+        ]);
     }
+
     $grade = (float) $body['grade'];
-    $data['students'][$idx]['subjects'][] = [
-        'name'  => $subjectName,
-        'grade' => $grade,
-        'label' => getGradeLabel($grade),
-    ];
-    saveData($data);
+    $stmt = db()->prepare(
+        'INSERT INTO subjects (student_id, name, grade, label)
+         VALUES (?, ?, ?, ?)'
+    );
+    $stmt->execute([$id, $subjectName, $grade, getGradeLabel($grade)]);
+
     respond(201, [
         'success' => true,
         'message' => "Subject \"{$subjectName}\" added.",
-        'data'    => withGWA($data['students'][$idx]),
+        'data' => fetchStudentById($id),
     ]);
 }
 
-// PUT /students/{id}/subjects/{name}  – update a grade
 if ($method === 'PUT') {
     if ($subParam === null) {
         respond(400, ['success' => false, 'message' => 'Subject name is required in the URL.']);
@@ -406,49 +549,44 @@ if ($method === 'PUT') {
             'message' => 'Invalid grade. Accepted values: ' . implode(', ', VALID_GRADES),
         ]);
     }
-    $found = false;
-    foreach ($data['students'][$idx]['subjects'] as &$s) {
-        if (strtolower($s['name']) === strtolower($subParam)) {
-            $grade      = (float) $body['grade'];
-            $s['grade'] = $grade;
-            $s['label'] = getGradeLabel($grade);
-            $found = true;
-            break;
-        }
-    }
-    unset($s);
-    if (!$found) {
+
+    $subject = findSubjectRecord($id, $subParam);
+    if (!$subject) {
         respond(404, ['success' => false, 'message' => "Subject \"{$subParam}\" not found."]);
     }
-    saveData($data);
+
+    $grade = (float) $body['grade'];
+    $stmt = db()->prepare(
+        'UPDATE subjects
+         SET grade = ?, label = ?
+         WHERE id = ?'
+    );
+    $stmt->execute([$grade, getGradeLabel($grade), (int) $subject['id']]);
+
     respond(200, [
         'success' => true,
         'message' => "Grade for \"{$subParam}\" updated.",
-        'data'    => withGWA($data['students'][$idx]),
+        'data' => fetchStudentById($id),
     ]);
 }
 
-// DELETE /students/{id}/subjects/{name}  – remove a subject
 if ($method === 'DELETE') {
     if ($subParam === null) {
         respond(400, ['success' => false, 'message' => 'Subject name is required in the URL.']);
     }
-    $found = false;
-    foreach ($data['students'][$idx]['subjects'] as $i => $s) {
-        if (strtolower($s['name']) === strtolower($subParam)) {
-            array_splice($data['students'][$idx]['subjects'], $i, 1);
-            $found = true;
-            break;
-        }
-    }
-    if (!$found) {
+
+    $subject = findSubjectRecord($id, $subParam);
+    if (!$subject) {
         respond(404, ['success' => false, 'message' => "Subject \"{$subParam}\" not found."]);
     }
-    saveData($data);
+
+    $stmt = db()->prepare('DELETE FROM subjects WHERE id = ?');
+    $stmt->execute([(int) $subject['id']]);
+
     respond(200, [
         'success' => true,
         'message' => "Subject \"{$subParam}\" removed.",
-        'data'    => withGWA($data['students'][$idx]),
+        'data' => fetchStudentById($id),
     ]);
 }
 
