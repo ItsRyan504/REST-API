@@ -5,11 +5,12 @@
 
 /* ── Variables ── */
 :root {
-  --primary:       #1e40af;
+  --primary:       #1a56db;
   --primary-dark:  #1e3a8a;
   --primary-light: #dbeafe;
-  --accent:        #d97706;
-  --accent-light:  #fef3c7;
+  --accent:        #ea580c;
+  --accent-dark:   #c2410c;
+  --accent-light:  #ffedd5;
   --bg:            #f1f5f9;
   --surface:       #ffffff;
   --border:        #e2e8f0;
@@ -42,13 +43,14 @@ body {
 
 /* ── Header ── */
 .site-header {
-  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1a56db 60%, #2563eb 100%);
   color: #fff;
   padding: 0 1.5rem;
   box-shadow: var(--shadow);
   position: sticky;
   top: 0;
   z-index: 100;
+  border-bottom: 3px solid var(--accent);
 }
 .header-inner {
   max-width: 1320px;
@@ -135,8 +137,8 @@ body {
   outline: none;
 }
 .input:focus, .select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
 }
 .input::placeholder { color: var(--text-muted); }
 
@@ -161,10 +163,10 @@ body {
 .btn-xs { padding: .25rem .55rem; font-size: .75rem; }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--accent);
   color: #fff;
 }
-.btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--accent-dark); box-shadow: var(--shadow-sm); }
 
 .btn-success {
   background: var(--success);
@@ -212,14 +214,14 @@ body {
   gap: .75rem;
 }
 .student-card:hover {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
-  background: #fafcff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+  background: #fff9f5;
 }
 .student-card.active {
-  border-color: var(--primary);
-  background: var(--primary-light);
-  box-shadow: 0 0 0 3px rgba(30,64,175,.12);
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(234,88,12,.12);
 }
 
 .card-avatar {
@@ -273,7 +275,7 @@ body {
 .badge-offline   { background: var(--danger-bg); color: var(--danger); }
 .badge-passed    { background: var(--success-bg); color: var(--success); }
 .badge-failed    { background: var(--danger-bg); color: var(--danger); }
-.badge-honors    { background: var(--accent-light); color: var(--accent); }
+.badge-honors    { background: var(--accent-light); color: var(--accent-dark); }
 .badge-none      { background: var(--border); color: var(--text-muted); }
 
 /* ── Detail Panel ── */
@@ -340,7 +342,7 @@ body {
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
-.gwa-card.honors  { background: var(--accent-light);  border: 1.5px solid #fcd34d; }
+.gwa-card.honors  { background: var(--accent-light);  border: 1.5px solid #fb923c; }
 .gwa-card.passed  { background: var(--success-bg);    border: 1.5px solid #6ee7b7; }
 .gwa-card.failed  { background: var(--danger-bg);     border: 1.5px solid #fca5a5; }
 .gwa-card.no-grade { background: var(--bg);           border: 1.5px solid var(--border); }
@@ -397,7 +399,7 @@ body {
   padding: .1rem .4rem;
   border-radius: 4px;
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--primary-dark);
 }
 .grade-tag.failed-tag { background: var(--danger-bg); color: var(--danger); }
 
@@ -568,7 +570,7 @@ body {
 .auth-screen {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, #0f172a 0%, var(--primary-dark) 55%, var(--primary) 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 45%, #1a56db 75%, #ea580c 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -584,6 +586,7 @@ body {
   max-width: 420px;
   padding: 2rem 2rem 1.75rem;
   animation: modalIn .22s ease;
+  border-top: 4px solid var(--accent);
 }
 
 .auth-brand {
@@ -623,8 +626,8 @@ body {
   transition: color var(--transition), border-color var(--transition);
 }
 .auth-tab.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 .auth-tab:hover:not(.active) { color: var(--text); }
 

@@ -208,7 +208,7 @@ function renderStudentDetail(student) {
         </div>
         <div style="text-align:center; opacity:.6; font-size:.8rem; line-height:1.6;">
           ${student.subjects.length} Subject${student.subjects.length !== 1 ? 's' : ''}<br/>
-          <small>Philippine Scale 1.0–5.0</small>
+          <small>Academic performance summary</small>
         </div>
       </div>
 
@@ -502,12 +502,58 @@ const tabRegister  = document.getElementById('tab-register');
 const formLogin    = document.getElementById('form-login');
 const formRegister = document.getElementById('form-register');
 const authError    = document.getElementById('auth-error');
+const loginUsernameInput = document.getElementById('login-username');
+const loginPasswordInput = document.getElementById('login-password');
+const regFullNameInput   = document.getElementById('reg-fullname');
+const regUsernameInput   = document.getElementById('reg-username');
+const regPasswordInput   = document.getElementById('reg-password');
+const regConfirmInput    = document.getElementById('reg-confirm');
+
+function resetLoginForm(username = '') {
+  loginUsernameInput.value = username;
+  loginPasswordInput.value = '';
+}
+
+function resetRegisterForm() {
+  regFullNameInput.value = '';
+  regUsernameInput.value = '';
+  regPasswordInput.value = '';
+  regConfirmInput.value = '';
+}
+
+function resetAuthForms(username = '') {
+  resetLoginForm(username);
+  resetRegisterForm();
+}
+
+async function performLogin(username, password, { showWelcomeToast = true } = {}) {
+  const res = await fetch(`${API_BASE}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const json = await res.json();
+  if (!json.success) {
+    showAuthError(json.message);
+    return false;
+  }
+  setSession(json.token, json.user);
+  resetAuthForms();
+  hideAuthScreen();
+  loadStudents();
+  if (showWelcomeToast) {
+    showToast(`Welcome back, ${json.user.full_name}!`);
+  }
+  return true;
+}
 
 function showAuthScreen() {
   authScreen.style.display = 'flex';
   userInfo.classList.add('hidden');
   apiStatus.className = 'badge badge-checking';
   apiStatus.textContent = 'Connecting…';
+  resetAuthForms();
+  switchAuthTab('login');
 }
 
 function hideAuthScreen() {
@@ -536,25 +582,15 @@ function clearAuthError() { authError.style.display = 'none'; }
 
 // ── Login ────────────────────────────────────────────────
 async function handleLogin() {
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value;
+  const username = loginUsernameInput.value.trim();
+  const password = loginPasswordInput.value;
   clearAuthError();
   if (!username || !password) { showAuthError('Please enter your username and password.'); return; }
 
   const btn = document.getElementById('btn-login');
   btn.disabled = true; btn.textContent = 'Logging in…';
   try {
-    const res = await fetch(`${API_BASE}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const json = await res.json();
-    if (!json.success) { showAuthError(json.message); return; }
-    setSession(json.token, json.user);
-    hideAuthScreen();
-    loadStudents();
-    showToast(`Welcome back, ${json.user.full_name}!`);
+    await performLogin(username, password);
   } catch (_) {
     showAuthError('Could not reach the API. Is XAMPP running?');
   } finally {
@@ -564,10 +600,10 @@ async function handleLogin() {
 
 // ── Register ─────────────────────────────────────────────
 async function handleRegister() {
-  const full_name = document.getElementById('reg-fullname').value.trim();
-  const username  = document.getElementById('reg-username').value.trim();
-  const password  = document.getElementById('reg-password').value;
-  const confirm   = document.getElementById('reg-confirm').value;
+  const full_name = regFullNameInput.value.trim();
+  const username  = regUsernameInput.value.trim();
+  const password  = regPasswordInput.value;
+  const confirm   = regConfirmInput.value;
   clearAuthError();
   if (!full_name || !username || !password || !confirm) { showAuthError('All fields are required.'); return; }
   if (password !== confirm) { showAuthError('Passwords do not match.'); return; }
@@ -583,12 +619,9 @@ async function handleRegister() {
     });
     const json = await res.json();
     if (!json.success) { showAuthError(json.message); return; }
-    // Pre-fill login form and switch tab
-    document.getElementById('login-username').value = username;
-    document.getElementById('login-password').value = password;
-    switchAuthTab('login');
+    resetRegisterForm();
     showToast('Account created! Logging you in…', 'info');
-    setTimeout(handleLogin, 400);
+    await performLogin(username, password, { showWelcomeToast: false });
   } catch (_) {
     showAuthError('Could not reach the API. Is XAMPP running?');
   } finally {
@@ -623,9 +656,9 @@ function attachAuthListeners() {
   document.getElementById('btn-login').addEventListener('click', handleLogin);
   document.getElementById('btn-register').addEventListener('click', handleRegister);
   document.getElementById('btn-logout').addEventListener('click', handleLogout);
-  document.getElementById('login-password')
+  loginPasswordInput
     .addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-  document.getElementById('reg-confirm')
+  regConfirmInput
     .addEventListener('keydown', e => { if (e.key === 'Enter') handleRegister(); });
 }
 
