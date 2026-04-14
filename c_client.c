@@ -313,31 +313,67 @@ static int extract_json_string(const char *json, const char *key, char *buffer, 
     char pattern[64];
     const char *found;
     const char *start;
-    const char *end;
+    const char *cursor;
+    size_t out = 0;
+    int escaped = 0;
 
     if (!json || !key) {
         return 0;
     }
 
-    snprintf(pattern, sizeof(pattern), "\"%s\":\"", key);
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
     found = strstr(json, pattern);
     if (!found) {
         return 0;
     }
 
-    start = found + strlen(pattern);
-    end = strchr(start, '"');
-    if (!end) {
+    start = strchr(found + strlen(pattern), ':');
+    if (!start) {
         return 0;
     }
 
-    if ((size_t) (end - start) >= size) {
+    start = skip_ws(start + 1);
+    if (!start || *start != '"') {
         return 0;
     }
 
-    memcpy(buffer, start, (size_t) (end - start));
-    buffer[end - start] = '\0';
-    return 1;
+    cursor = start + 1;
+    while (*cursor && out + 1 < size) {
+        if (escaped) {
+            switch (*cursor) {
+                case '"':
+                    buffer[out++] = '"';
+                    break;
+                case '\\':
+                    buffer[out++] = '\\';
+                    break;
+                case 'n':
+                    buffer[out++] = '\n';
+                    break;
+                case 'r':
+                    buffer[out++] = '\r';
+                    break;
+                case 't':
+                    buffer[out++] = '\t';
+                    break;
+                default:
+                    buffer[out++] = *cursor;
+                    break;
+            }
+            escaped = 0;
+        } else if (*cursor == '\\') {
+            escaped = 1;
+        } else if (*cursor == '"') {
+            buffer[out] = '\0';
+            return 1;
+        } else {
+            buffer[out++] = *cursor;
+        }
+        cursor++;
+    }
+
+    buffer[out] = '\0';
+    return 0;
 }
 
 static int extract_json_int(const char *json, const char *key, int *value)
@@ -772,6 +808,71 @@ cleanup:
     free(escaped_year);
 }
 
+static void handle_add_subject(SchoolAPIClient *client)
+{
+    char student_id_text[INPUT_SIZE];
+    char subject_name[NAME_SIZE];
+    char grade_text[INPUT_SIZE];
+    char *escaped_subject = NULL;
+    char payload[INPUT_SIZE * 3];
+    char command[INPUT_SIZE * 6];
+    char response[RESPONSE_SIZE];
+    char payload_path[L_tmpnam];
+    char *end = NULL;
+    long student_id;
+    double grade_value;
+
+    if (!read_line("Student ID: ", student_id_text, sizeof(student_id_text))) {
+        return;
+    }
+    student_id = strtol(student_id_text, &end, 10);
+    if (student_id_text[0] == '\0' || !end || *end != '\0' || student_id <= 0) {
+        printf("\nError: Student ID must be a positive number.\n");
+        return;
+    }
+
+    if (!read_line("Subject name: ", subject_name, sizeof(subject_name))) {
+        return;
+    }
+
+    if (!read_line("Grade (e.g. 1.75): ", grade_text, sizeof(grade_text))) {
+        return;
+    }
+
+    grade_value = strtod(grade_text, &end);
+    if (grade_text[0] == '\0' || !end || *end != '\0') {
+        printf("\nError: Grade must be a number.\n");
+        return;
+    }
+
+    escaped_subject = json_escape_string(subject_name);
+    if (!escaped_subject) {
+        printf("\nError: Out of memory.\n");
+        return;
+    }
+
+    snprintf(payload, sizeof(payload), "{\"subject_name\":\"%s\",\"grade\":%.2f}", escaped_subject, grade_value);
+    if (!write_temp_payload(payload, payload_path, sizeof(payload_path))) {
+        printf("\nError: Failed to write payload.\n");
+        goto cleanup;
+    }
+
+    snprintf(command, sizeof(command),
+        "curl -s -X POST \"%s/students/%ld/subjects\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer %s\" --data-binary \"@%s\"",
+        client->base_url,
+        student_id,
+        client->token,
+        payload_path
+    );
+
+    run_curl_request(command, response, sizeof(response));
+    print_message(response, "Subject grade added.");
+
+cleanup:
+    remove(payload_path);
+    free(escaped_subject);
+}
+
 static void handle_view_gwa(SchoolAPIClient *client)
 {
     char student_id_text[INPUT_SIZE];
@@ -839,8 +940,9 @@ static void print_user_menu(void)
         "[1] Show My Account\n"
         "[2] List Students\n"
         "[3] Add Student\n"
-        "[4] View Student GWA\n"
-        "[5] Logout\n"
+        "[4] Add Subject Grade\n"
+        "[5] View Student GWA\n"
+        "[6] Logout\n"
         "[0] Exit\n"
     );
 }
@@ -879,8 +981,10 @@ int main(void)
             } else if (strcmp(choice, "3") == 0) {
                 handle_add_student(&client);
             } else if (strcmp(choice, "4") == 0) {
-                handle_view_gwa(&client);
+                handle_add_subject(&client);
             } else if (strcmp(choice, "5") == 0) {
+                handle_view_gwa(&client);
+            } else if (strcmp(choice, "6") == 0) {
                 handle_logout(&client);
             } else if (strcmp(choice, "0") == 0) {
                 printf("\nExiting C client.\n");

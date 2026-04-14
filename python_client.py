@@ -91,6 +91,14 @@ class SchoolAPIClient:
     def get_student_gwa(self, student_id):
         return self._request("GET", f"/students/{student_id}/gwa", use_auth=True)[1]
 
+    def add_subject(self, student_id, subject_name, grade):
+        return self._request(
+            "POST",
+            f"/students/{student_id}/subjects",
+            {"subject_name": subject_name, "grade": grade},
+            use_auth=True,
+        )[1]
+
 
 def clear_terminal():
     os.system("cls" if os.name == "nt" else "clear")
@@ -150,8 +158,9 @@ def menu(client):
             "[1] Show My Account\n"
             "[2] List Students\n"
             "[3] Add Student\n"
-            "[4] View Student GWA\n"
-            "[5] Logout\n"
+            "[4] Add Subject Grade\n"
+            "[5] View Student GWA\n"
+            "[6] Logout\n"
             "[0] Exit"
         )
     else:
@@ -210,10 +219,23 @@ def main():
                     student_id = input("Student ID: ").strip()
                     if not student_id.isdigit():
                         raise APIError(400, "Student ID must be a number.")
+                    subject_name = input("Subject name: ").strip()
+                    grade = input("Grade (e.g. 1.75): ").strip()
+                    try:
+                        grade_value = float(grade)
+                    except ValueError as exc:
+                        raise APIError(400, "Grade must be a number.") from exc
+                    res = client.add_subject(int(student_id), subject_name, grade_value)
+                    print(f"\n{res.get('message', 'Subject grade added.')}")
+
+                elif choice == "5":
+                    student_id = input("Student ID: ").strip()
+                    if not student_id.isdigit():
+                        raise APIError(400, "Student ID must be a number.")
                     res = client.get_student_gwa(int(student_id))
                     print_gwa(res)
 
-                elif choice == "5":
+                elif choice == "6":
                     res = client.logout()
                     print(f"\n{res.get('message', 'Logged out.')}")
 
