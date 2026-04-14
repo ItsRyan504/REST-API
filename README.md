@@ -6,7 +6,7 @@ It includes:
 
 - A `PHP + MySQL` REST API
 - A browser-based client built with `HTML/CSS/JavaScript`
-- A second client built with `Python`
+- A second client built with `C`
 
 ## Project Overview
 
@@ -52,8 +52,8 @@ This activity can be demonstrated using these two clients:
 1. `Client 1: Web Browser`
    The included frontend in `index.html` and `js/app.js` consumes the API using the Fetch API.
 
-2. `Client 2: Python CLI`
-   The file `python_client.py` consumes the same API from the command line.
+2. `Client 2: C CLI`
+   The file `c_client.c` consumes the same API from the command line.
 
 ## Project Files
 
@@ -64,7 +64,8 @@ This activity can be demonstrated using these two clients:
 - `index.html` - browser client UI
 - `js/app.js` - browser client logic
 - `css/style.css` - browser client styling
-- `python_client.py` - simple Python command-line client
+- `c_client.c` - simple C command-line client with buffered menu input
+- `python_client.py` - optional Python reference client
 - `.htaccess` - URL rewrite for `/api/...` routes
 
 ## Database Setup
@@ -108,7 +109,7 @@ Direct API file URL:
 http://localhost/REST-API/api.php
 ```
 
-The `.htaccess` file rewrites `/api/...` requests to `api.php/...`, and the Python client uses the direct `api.php` URL by default.
+The `.htaccess` file rewrites `/api/...` requests to `api.php/...`, and the C client uses the direct `api.php` URL by default.
 
 ## Demo Account
 
@@ -149,12 +150,15 @@ Typical flow:
 - `PUT /api/students/{id}/subjects/{subjectName}` - update subject grade
 - `DELETE /api/students/{id}/subjects/{subjectName}` - delete subject
 
-## Python Client Setup
+## C Client Setup
 
-Run the Python client from the project folder:
+Compile and run the C client from the project folder.
+
+Example using MinGW on Windows:
 
 ```bash
-python python_client.py
+gcc c_client.c -o c_client.exe -lwinhttp
+.\c_client.exe
 ```
 
 Default API base URL:
@@ -167,10 +171,11 @@ If your local URL is different, set `API_BASE_URL` first:
 
 ```bash
 set API_BASE_URL=http://localhost/REST-API/api.php
-python python_client.py
+gcc c_client.c -o c_client.exe -lwinhttp
+.\c_client.exe
 ```
 
-The Python client can:
+The C client can:
 
 - Register a user
 - Log in
@@ -179,6 +184,13 @@ The Python client can:
 - Add a student
 - View student GWA
 - Handle API and connection errors with clear messages
+- Read menu choices and text input safely with buffered input
+
+If you are using the Microsoft compiler instead of MinGW, compile it like this:
+
+```bash
+cl c_client.c /link winhttp.lib
+```
 
 ## Example Requests For Testing
 
@@ -261,9 +273,9 @@ The included web client can:
 
 It uses `fetch()` in `js/app.js` to call the REST API and display the results in the browser.
 
-## Client 2: Python CLI
+## Client 2: C CLI
 
-The second client demonstrates that the API is not limited to the browser interface. The Python app sends HTTP requests, reads JSON responses, displays the returned data clearly, and shows friendly error messages when requests fail.
+The second client demonstrates that the API is not limited to the browser interface. The C app sends HTTP requests, reads JSON responses, displays the returned data clearly, and shows friendly error messages when requests fail. Its menu flow is intentionally similar to the Python version, including the `Choose an action` prompt and buffered console input handling.
 
 ## Grade Rules
 
@@ -289,4 +301,4 @@ The API also assigns remarks such as:
 
 ## Summary
 
-This project demonstrates a complete REST API with authentication, CRUD operations, GWA processing, and JSON-based communication. It also shows how one API can be used by `2 clients`: a custom browser frontend and a separate API consumer such as Postman or cURL.
+This project demonstrates a complete REST API with authentication, CRUD operations, GWA processing, and JSON-based communication. It also shows how one API can be used by `2 clients`: a custom browser frontend and a C command-line client.
