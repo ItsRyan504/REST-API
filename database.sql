@@ -1,8 +1,8 @@
-CREATE DATABASE IF NOT EXISTS school_grading_system
+CREATE DATABASE IF NOT EXISTS gradetrack
 CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 
-USE school_grading_system;
+USE gradetrack;
 
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -106,6 +106,10 @@ def print_error(exc):
     print(f"\nError: {exc}")
 
 
+def pause_for_enter():
+    input("\nPress Enter to proceed...")
+
+
 def print_students(data):
     students = data.get("data", [])
     if not students:
@@ -139,24 +143,30 @@ def print_gwa(data):
     print(f"Total Subjects: {info.get('total_subjects', 0)}")
 
 
-def menu():
-    print(
-        "\nChoose an action:\n"
-        "[1] Register\n"
-        "[2] Login\n"
-        "[3] Show My Account\n"
-        "[4] List Students\n"
-        "[5] Add Student\n"
-        "[6] View Student GWA\n"
-        "[7] Logout\n"
-        "[0] Exit"
-    )
+def menu(client):
+    if client.user:
+        print(
+            "\nChoose an action:\n"
+            "[1] Show My Account\n"
+            "[2] List Students\n"
+            "[3] Add Student\n"
+            "[4] View Student GWA\n"
+            "[5] Logout\n"
+            "[0] Exit"
+        )
+    else:
+        print(
+            "\nChoose an action:\n"
+            "[1] Register\n"
+            "[2] Login\n"
+            "[0] Exit"
+        )
     return input("Enter choice: ").strip()
 
 
 def render_header(client):
     clear_terminal()
-    print_title("School Grading System - Python Client")
+    print_title("GradeTrack - Python Client")
     print(f"API Base URL: {client.base_url}")
     if client.user:
         print(f"Logged in as: {client.user.get('full_name', client.user.get('username', 'User'))}")
@@ -169,69 +179,81 @@ def main():
 
     while True:
         render_header(client)
-        choice = menu()
+        choice = menu(client)
         clear_terminal()
-        print_title("School Grading System - Python Client")
+        print_title("GradeTrack - Python Client")
         print(f"API Base URL: {client.base_url}")
+        should_pause = choice != "0"
 
         try:
-            if choice == "1":
-                full_name = input("Full name: ").strip()
-                username = input("Username: ").strip()
-                password = getpass("Password: ")
-                res = client.register(full_name, username, password)
-                print(f"\n{res.get('message', 'Registration complete.')}")
+            if client.user:
+                if choice == "1":
+                    res = client.me()
+                    user = res.get("data", {})
+                    print()
+                    print(f"ID: {user.get('id')}")
+                    print(f"Name: {user.get('full_name')}")
+                    print(f"Username: {user.get('username')}")
+                    print(f"Role: {user.get('role')}")
 
-            elif choice == "2":
-                username = input("Username: ").strip()
-                password = getpass("Password: ")
-                res = client.login(username, password)
-                user = res.get("user", {})
-                print(f"\n{res.get('message', 'Login successful.')}")
-                print(f"Welcome, {user.get('full_name', user.get('username', 'User'))}!")
+                elif choice == "2":
+                    res = client.list_students()
+                    print_students(res)
 
-            elif choice == "3":
-                res = client.me()
-                user = res.get("data", {})
-                print()
-                print(f"ID: {user.get('id')}")
-                print(f"Name: {user.get('full_name')}")
-                print(f"Username: {user.get('username')}")
-                print(f"Role: {user.get('role')}")
+                elif choice == "3":
+                    name = input("Student name: ").strip()
+                    year_level = input("Year level: ").strip()
+                    res = client.add_student(name, year_level)
+                    print(f"\n{res.get('message', 'Student added.')}")
 
-            elif choice == "4":
-                res = client.list_students()
-                print_students(res)
+                elif choice == "4":
+                    student_id = input("Student ID: ").strip()
+                    if not student_id.isdigit():
+                        raise APIError(400, "Student ID must be a number.")
+                    res = client.get_student_gwa(int(student_id))
+                    print_gwa(res)
 
-            elif choice == "5":
-                name = input("Student name: ").strip()
-                year_level = input("Year level: ").strip()
-                res = client.add_student(name, year_level)
-                print(f"\n{res.get('message', 'Student added.')}")
+                elif choice == "5":
+                    res = client.logout()
+                    print(f"\n{res.get('message', 'Logged out.')}")
 
-            elif choice == "6":
-                student_id = input("Student ID: ").strip()
-                if not student_id.isdigit():
-                    raise APIError(400, "Student ID must be a number.")
-                res = client.get_student_gwa(int(student_id))
-                print_gwa(res)
+                elif choice == "0":
+                    print("\nExiting Python client.")
+                    break
 
-            elif choice == "7":
-                res = client.logout()
-                print(f"\n{res.get('message', 'Logged out.')}")
-
-            elif choice == "0":
-                print("\nExiting Python client.")
-                break
-
+                else:
+                    print("\nInvalid choice. Please select from the menu.")
             else:
-                print("\nInvalid choice. Please select from the menu.")
+                if choice == "1":
+                    full_name = input("Full name: ").strip()
+                    username = input("Username: ").strip()
+                    password = getpass("Password: ")
+                    res = client.register(full_name, username, password)
+                    print(f"\n{res.get('message', 'Registration complete.')}")
+
+                elif choice == "2":
+                    username = input("Username: ").strip()
+                    password = getpass("Password: ")
+                    res = client.login(username, password)
+                    user = res.get("user", {})
+                    print(f"\n{res.get('message', 'Login successful.')}")
+                    print(f"Welcome, {user.get('full_name', user.get('username', 'User'))}!")
+
+                elif choice == "0":
+                    print("\nExiting Python client.")
+                    break
+
+                else:
+                    print("\nInvalid choice. Please select from the menu.")
 
         except APIError as exc:
             print_error(exc)
         except KeyboardInterrupt:
             print("\n\nExiting Python client.")
             break
+
+        if should_pause:
+            pause_for_enter()
 
 
 if __name__ == "__main__":

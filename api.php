@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-//  School Grading System API
+//  GradeTrack API
 // ============================================================
 
 header('Content-Type: application/json');

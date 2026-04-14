@@ -1,6 +1,6 @@
-USE school_grading_system;
+USE gradetrack;
 
--- Import this into a fresh or empty school_grading_system database.
+-- Import this into a fresh or empty gradetrack database.
 -- Demo login
 -- username: teacher_demo
 -- password: teacher123

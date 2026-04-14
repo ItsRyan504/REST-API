@@ -1,5 +1,5 @@
 // ============================================================
-//  School Grading System – Frontend
+//  GradeTrack – Frontend
 //  Communicates with api.php via Fetch API
 // ============================================================
 

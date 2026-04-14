@@ -7,7 +7,7 @@ if (!defined('DB_PORT')) {
     define('DB_PORT', getenv('DB_PORT') ?: '3306');
 }
 if (!defined('DB_NAME')) {
-    define('DB_NAME', getenv('DB_NAME') ?: 'school_grading_system');
+    define('DB_NAME', getenv('DB_NAME') ?: 'gradetrack');
 }
 if (!defined('DB_USER')) {
     define('DB_USER', getenv('DB_USER') ?: 'root');

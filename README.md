@@ -1,4 +1,4 @@
-# School Grading System REST API
+# GradeTrack REST API
 
 This project is an `ADET` activity that demonstrates how a custom REST API works with `2 clients`.
 
@@ -78,7 +78,7 @@ Default database settings in `db.php`:
 
 - `DB_HOST=127.0.0.1`
 - `DB_PORT=3306`
-- `DB_NAME=school_grading_system`
+- `DB_NAME=gradetrack`
 - `DB_USER=root`
 - `DB_PASS=` (empty by default)
 
