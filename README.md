@@ -6,7 +6,7 @@ It includes:
 
 - A `PHP + MySQL` REST API
 - A browser-based client built with `HTML/CSS/JavaScript`
-- A second client flow using `Postman`, `Thunder Client`, or `cURL`
+- A second client built with `Python`
 
 ## Project Overview
 
@@ -52,8 +52,8 @@ This activity can be demonstrated using these two clients:
 1. `Client 1: Web Browser`
    The included frontend in `index.html` and `js/app.js` consumes the API using the Fetch API.
 
-2. `Client 2: API Client Tool`
-   The same API can be consumed using `Postman`, `Thunder Client`, or `cURL`.
+2. `Client 2: Python CLI`
+   The file `python_client.py` consumes the same API from the command line.
 
 ## Project Files
 
@@ -64,6 +64,7 @@ This activity can be demonstrated using these two clients:
 - `index.html` - browser client UI
 - `js/app.js` - browser client logic
 - `css/style.css` - browser client styling
+- `python_client.py` - simple Python command-line client
 - `.htaccess` - URL rewrite for `/api/...` routes
 
 ## Database Setup
@@ -95,13 +96,19 @@ Example:
 http://localhost/REST-API/
 ```
 
-Base API URL:
+Base API URL using rewrite:
 
 ```text
 http://localhost/REST-API/api
 ```
 
-The `.htaccess` file rewrites `/api/...` requests to `api.php/...`.
+Direct API file URL:
+
+```text
+http://localhost/REST-API/api.php
+```
+
+The `.htaccess` file rewrites `/api/...` requests to `api.php/...`, and the Python client uses the direct `api.php` URL by default.
 
 ## Demo Account
 
@@ -142,7 +149,38 @@ Typical flow:
 - `PUT /api/students/{id}/subjects/{subjectName}` - update subject grade
 - `DELETE /api/students/{id}/subjects/{subjectName}` - delete subject
 
-## Example Requests For Client 2
+## Python Client Setup
+
+Run the Python client from the project folder:
+
+```bash
+python python_client.py
+```
+
+Default API base URL:
+
+```text
+http://localhost/REST-API/api.php
+```
+
+If your local URL is different, set `API_BASE_URL` first:
+
+```bash
+set API_BASE_URL=http://localhost/REST-API/api.php
+python python_client.py
+```
+
+The Python client can:
+
+- Register a user
+- Log in
+- View the logged-in account
+- List students
+- Add a student
+- View student GWA
+- Handle API and connection errors with clear messages
+
+## Example Requests For Testing
 
 ### Register
 
@@ -223,15 +261,9 @@ The included web client can:
 
 It uses `fetch()` in `js/app.js` to call the REST API and display the results in the browser.
 
-## Client 2: Postman / Thunder Client / cURL
+## Client 2: Python CLI
 
-The second client demonstrates that the API is not limited to the browser interface. Any HTTP client can consume the same endpoints by sending:
-
-- A method such as `GET`, `POST`, `PUT`, or `DELETE`
-- JSON request bodies
-- A Bearer token for protected routes
-
-This proves the API is reusable across multiple clients.
+The second client demonstrates that the API is not limited to the browser interface. The Python app sends HTTP requests, reads JSON responses, displays the returned data clearly, and shows friendly error messages when requests fail.
 
 ## Grade Rules
 
