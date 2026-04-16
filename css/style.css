@@ -8,7 +8,7 @@
   --primary:       #1a56db;
   --primary-dark:  #1e3a8a;
   --primary-light: #dbeafe;
-  --accent:        #ea580c;
+  --accent:        #f98125;
   --accent-dark:   #c2410c;
   --accent-light:  #ffedd5;
   --bg:            #f1f5f9;
@@ -17,8 +17,8 @@
   --text:          #0f172a;
   --text-muted:    #64748b;
   --success:       #065f46;
-  --success-bg:    #d1fae5;
-  --danger:        #991b1b;
+  --success-bg:    #daf4fb;
+  --danger:        #e23636;
   --danger-bg:     #fee2e2;
   --warning:       #92400e;
   --warning-bg:    #fef3c7;
@@ -343,7 +343,7 @@ body {
   flex-wrap: wrap;
 }
 .gwa-card.honors  { background: var(--accent-light);  border: 1.5px solid #fb923c; }
-.gwa-card.passed  { background: var(--success-bg);    border: 1.5px solid #6ee7b7; }
+.gwa-card.passed  { background: var(--success-bg);    border: 1.5px solid #67cdc9; }
 .gwa-card.failed  { background: var(--danger-bg);     border: 1.5px solid #fca5a5; }
 .gwa-card.no-grade { background: var(--bg);           border: 1.5px solid var(--border); }
 
@@ -570,7 +570,7 @@ body {
 .auth-screen {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 45%, #1a56db 75%, #ea580c 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 45%, #1a56db 75%, #f98125 100%);
   display: flex;
   align-items: center;
   justify-content: center;
